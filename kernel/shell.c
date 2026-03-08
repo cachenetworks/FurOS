@@ -703,7 +703,7 @@ static void cmd_nano(int argc, char *argv[]) {
         return;
     }
 
-    if (fs_touch(shell_cwd, argv[1]) != 0 && fs_read_file(shell_cwd, argv[1], &existing, &existing_len) != 0) {
+    if (fs_touch(shell_cwd, argv[1]) != 0 || fs_read_file(shell_cwd, argv[1], &existing, &existing_len) != 0) {
         shell_println("nano: unable to open file");
         return;
     }
@@ -819,15 +819,15 @@ void shell_run(void) {
         } else if (kstrcmp(argv[0], "pwd") == 0) {
             cmd_pwd();
         } else if (kstrcmp(argv[0], "ls") == 0) {
-            cmd_ls(argc, argv);
+            cmd_ls(argc, argv, shell_uid);
         } else if (kstrcmp(argv[0], "cd") == 0) {
-            cmd_cd(argc, argv);
+            cmd_cd(argc, argv, shell_uid);
         } else if (kstrcmp(argv[0], "mkdir") == 0) {
-            cmd_mkdir(argc, argv);
+            cmd_mkdir(argc, argv, shell_uid);
         } else if (kstrcmp(argv[0], "touch") == 0) {
-            cmd_touch(argc, argv);
+            cmd_touch(argc, argv, shell_uid);
         } else if (kstrcmp(argv[0], "cat") == 0) {
-            cmd_cat(argc, argv);
+            cmd_cat(argc, argv, shell_uid);
         } else if (kstrcmp(argv[0], "write") == 0) {
             cmd_write(argc, argv);
         } else if (kstrcmp(argv[0], "nano") == 0) {
