@@ -186,7 +186,8 @@ static int confirm_install(void) {
 }
 
 static int perform_install(void) {
-    const char *release_text = "FurOS installed system\n";
+    int root;
+    int home_node;
 
     if (disk_install_system() != 0) {
         return -1;
@@ -196,10 +197,77 @@ static int perform_install(void) {
         return -1;
     }
 
-    fs_mkdir(fs_get_root(), "bin");
-    fs_mkdir(fs_get_root(), "etc");
-    fs_mkdir(fs_get_root(), "home");
-    fs_write_file(fs_get_root(), "etc/release", release_text, kstrlen(release_text));
+    root = fs_get_root();
+
+    /* Standard Debian-like directory hierarchy */
+    fs_mkdir_as(root, "bin",  0, 0755);
+    fs_mkdir_as(root, "etc",  0, 0755);
+    fs_mkdir_as(root, "home", 0, 0755);
+    fs_mkdir_as(root, "var",  0, 0755);
+    fs_mkdir_as(root, "tmp",  0, 0755);
+    fs_mkdir_as(root, "usr",  0, 0755);
+
+    /* /home/debian */
+    home_node = fs_resolve(root, "home");
+    if (home_node >= 0) {
+        fs_mkdir_as(home_node, "debian", 1000, 0755);
+    }
+
+    /* /etc/os-release */
+    {
+        const char *os_release =
+            "PRETTY_NAME=\"FurOS 1.0 (Bookworm)\"\n"
+            "NAME=\"FurOS\"\n"
+            "VERSION_ID=\"1.0\"\n"
+            "VERSION=\"1.0 (Bookworm)\"\n"
+            "VERSION_CODENAME=bookworm\n"
+            "ID=furos\n"
+            "ID_LIKE=debian\n"
+            "HOME_URL=\"https://furos.org/\"\n"
+            "SUPPORT_URL=\"https://furos.org/support\"\n"
+            "BUG_REPORT_URL=\"https://furos.org/bugs\"\n";
+        fs_write_file(root, "etc/os-release", os_release, kstrlen(os_release));
+    }
+
+    /* /etc/hostname */
+    {
+        const char *hostname = "furos\n";
+        fs_write_file(root, "etc/hostname", hostname, kstrlen(hostname));
+    }
+
+    /* /etc/motd */
+    {
+        const char *motd =
+            "\n"
+            "  ______           ____  ____\n"
+            " |  ____|         / __ \\/ ___|\n"
+            " | |__ _   _ _ __| |  | \\___ \\\n"
+            " |  __| | | | '__| |  | |___) |\n"
+            " | |  | |_| | |  | |__| |____/\n"
+            " |_|   \\__,_|_|   \\____/\n"
+            "\n"
+            " FurOS 1.0 (based on Debian GNU/Linux 12 Bookworm)\n"
+            " Type 'help' for available commands.\n"
+            "\n";
+        fs_write_file(root, "etc/motd", motd, kstrlen(motd));
+    }
+
+    /* /etc/passwd */
+    {
+        const char *passwd =
+            "root:x:0:0:root:/root:/bin/sh\n"
+            "debian:x:1000:1000:Debian User,,,:/home/debian:/bin/sh\n";
+        fs_write_file(root, "etc/passwd", passwd, kstrlen(passwd));
+    }
+
+    /* /etc/group */
+    {
+        const char *group =
+            "root:x:0:\n"
+            "sudo:x:27:debian\n"
+            "debian:x:1000:\n";
+        fs_write_file(root, "etc/group", group, kstrlen(group));
+    }
 
     if (disk_save_fs() != 0) {
         return -1;
@@ -224,10 +292,16 @@ void installer_run(void) {
     disk_init();
 
     vga_clear();
-    vga_write_string("FurOS Installer\n");
-    vga_write_string("----------------\n");
-    vga_write_string("This mode installs FurOS to disk.\n");
-    vga_write_string("No command shell is available here.\n\n");
+    vga_write_string("  ______           ____  ____\n");
+    vga_write_string(" |  ____|         / __ \\/ ___|\n");
+    vga_write_string(" | |__ _   _ _ __| |  | \\___ \\\n");
+    vga_write_string(" |  __| | | | '__| |  | |___) |\n");
+    vga_write_string(" | |  | |_| | |  | |__| |____/\n");
+    vga_write_string(" |_|   \\__,_|_|   \\____/\n");
+    vga_write_string("\n");
+    vga_write_string(" FurOS 1.0 Installer  (based on Debian GNU/Linux 12 Bookworm)\n");
+    vga_write_string("--------------------------------------------------------------\n");
+    vga_write_string(" This will install FurOS to a disk. No undo once started.\n\n");
 
     if (disk_count() <= 0) {
         struct ata_debug_state dbg;
