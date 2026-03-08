@@ -807,7 +807,20 @@ static void ahci_probe_controller(uint8_t bus, uint8_t slot, uint8_t func, int p
             return;
         }
         port = &hba->ports[port_no];
-        if (port->sig != SATA_SIG_ATA && port->sig != 0) {
+
+        /* Check physical link: DET=3 (device present), IPM=1 (active) */
+        {
+            uint32_t ssts = port->ssts;
+            uint8_t det = (uint8_t)(ssts & 0xFu);
+            uint8_t ipm = (uint8_t)((ssts >> 8) & 0xFu);
+            if (det != HBA_PORT_DET_PRESENT || ipm != HBA_PORT_IPM_ACTIVE) {
+                continue;
+            }
+        }
+        /* Accept ATA (0x101), uninitialised (0 or 0xFFFFFFFF), skip ATAPI etc. */
+        if (port->sig != SATA_SIG_ATA &&
+            port->sig != 0u &&
+            port->sig != 0xFFFFFFFFu) {
             continue;
         }
         g_ahci_ports_considered++;
@@ -1015,6 +1028,51 @@ int ata_write_sector(uint32_t lba, const uint8_t *buffer512) {
 
     g_last_error = "unsupported disk interface";
     return -1;
+}
+
+static int ide_flush_cache(int index) {
+    struct ide_device *dev;
+
+    if (index < 0 || index >= ATA_MAX_IDE_DEVICES) {
+        g_last_error = "IDE invalid flush request";
+        return -1;
+    }
+    dev = &g_ide_devices[index];
+    if (!dev->present) {
+        g_last_error = "IDE device missing";
+        return -1;
+    }
+    if (ide_wait_ready(dev->io_base) != 0) {
+        return -1;
+    }
+    outb(dev->io_base + IDE_REG_HDDEVSEL, (uint8_t)(0xA0 | (dev->slave << 4)));
+    ide_delay_400ns(dev->io_base);
+    outb(dev->io_base + IDE_REG_COMMAND, 0xE7u); /* ATA FLUSH CACHE */
+    if (ide_wait_not_busy(dev->io_base) != 0) {
+        return -1;
+    }
+    error_ok();
+    return 0;
+}
+
+int ata_flush(void) {
+    struct device_map *entry;
+
+    if (g_selected_device < 0 || g_selected_device >= g_device_count) {
+        g_last_error = "no selected disk";
+        return -1;
+    }
+    entry = &g_devices[g_selected_device];
+    if (!entry->present) {
+        g_last_error = "selected disk missing";
+        return -1;
+    }
+    if (entry->kind == DEV_IDE) {
+        return ide_flush_cache((int)entry->source_index);
+    }
+    /* AHCI: DMA operations complete before returning, no extra flush needed */
+    error_ok();
+    return 0;
 }
 
 const char *ata_last_error(void) {

@@ -34,6 +34,7 @@ int ata_select_device(int index);
 int ata_selected_device(void);
 int ata_read_sector(uint32_t lba, uint8_t *buffer512);
 int ata_write_sector(uint32_t lba, const uint8_t *buffer512);
+int ata_flush(void);
 const char *ata_last_error(void);
 uint8_t ata_last_status(void);
 uint8_t ata_last_error_reg(void);

@@ -189,13 +189,19 @@ static int perform_install(void) {
     int root;
     int home_node;
 
+    vga_write_string(" [1/4] Writing bootloader and kernel to disk...\n");
     if (disk_install_system() != 0) {
         return -1;
     }
+    vga_write_string("       OK\n");
 
+    vga_write_string(" [2/4] Formatting filesystem area...\n");
     if (disk_format_fs() != 0) {
         return -1;
     }
+    vga_write_string("       OK\n");
+
+    vga_write_string(" [3/4] Creating directory structure and config files...\n");
 
     root = fs_get_root();
 
@@ -269,9 +275,13 @@ static int perform_install(void) {
         fs_write_file(root, "etc/group", group, kstrlen(group));
     }
 
+    vga_write_string("       OK\n");
+
+    vga_write_string(" [4/4] Saving filesystem to disk...\n");
     if (disk_save_fs() != 0) {
         return -1;
     }
+    vga_write_string("       OK\n");
 
     return 0;
 }
@@ -349,15 +359,17 @@ void installer_run(void) {
         wait_and_halt();
     }
 
-    vga_write_string("Installing...\n");
+    vga_write_string("\nInstalling FurOS to disk ");
+    print_u32((uint32_t)selected);
+    vga_write_string("...\n\n");
     if (perform_install() != 0) {
-        vga_write_string("Install failed: ");
+        vga_write_string("\n*** Install failed: ");
         vga_write_string(disk_last_error());
-        vga_write_string("\n");
+        vga_write_string(" ***\n");
         wait_and_halt();
     }
 
-    vga_write_string("\nInstall complete.\n");
-    vga_write_string("Power off, remove installer ISO, then boot from disk.\n");
+    vga_write_string("\n*** Install complete! ***\n");
+    vga_write_string("Power off, remove the installer ISO, then boot from disk.\n");
     wait_and_halt();
 }
