@@ -36,6 +36,7 @@ KERNEL_OBJS := \
 	$(BUILD_DIR)/disk.o \
 	$(BUILD_DIR)/installer.o \
 	$(BUILD_DIR)/shell.o \
+	$(BUILD_DIR)/desktop.o \
 	$(BOOTSECT_BLOB_OBJ)
 KERNEL_ELF := $(BUILD_DIR)/kernel.elf
 ISO_IMAGE := $(BUILD_DIR)/fursos.iso

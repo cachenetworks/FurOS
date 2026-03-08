@@ -4,8 +4,9 @@
 #include <stdint.h>
 
 static bool shift_pressed = false;
-static bool ctrl_pressed = false;
-static bool caps_lock = false;
+static bool ctrl_pressed  = false;
+static bool caps_lock     = false;
+static int  g_ext         = 0; /* non-zero after 0xE0 extended prefix */
 
 static const char scancode_set1_map[128] = {
     0, 27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b', '\t',
@@ -55,13 +56,14 @@ static char to_lower(char c) {
 
 void keyboard_init(void) {
     shift_pressed = false;
-    ctrl_pressed = false;
-    caps_lock = false;
+    ctrl_pressed  = false;
+    caps_lock     = false;
+    g_ext         = 0;
 }
 
-char keyboard_getchar(void) {
+int keyboard_get_key(void) {
     for (;;) {
-        uint8_t status = inb(0x64);
+        uint8_t status   = inb(0x64);
         uint8_t scancode;
         char c;
         bool shift_effective;
@@ -72,33 +74,51 @@ char keyboard_getchar(void) {
 
         scancode = inb(0x60);
 
+        /* Extended key prefix */
         if (scancode == 0xE0) {
+            g_ext = 1;
             continue;
         }
 
+        /* Key release */
         if (scancode & 0x80) {
-            uint8_t released = (uint8_t)(scancode & 0x7F);
-            if (released == 0x2A || released == 0x36) {
-                shift_pressed = false;
-            } else if (released == 0x1D) {
-                ctrl_pressed = false;
+            uint8_t released = (uint8_t)(scancode & 0x7Fu);
+            if (released == 0x2A || released == 0x36) { shift_pressed = false; }
+            else if (released == 0x1D) { ctrl_pressed = false; }
+            g_ext = 0;
+            continue;
+        }
+
+        /* Extended (cursor/function) keys */
+        if (g_ext) {
+            int ext_key = -1;
+            g_ext = 0;
+            switch (scancode) {
+                case 0x48: ext_key = KEY_UP;    break;
+                case 0x50: ext_key = KEY_DOWN;  break;
+                case 0x4B: ext_key = KEY_LEFT;  break;
+                case 0x4D: ext_key = KEY_RIGHT; break;
+                default: break;
+            }
+            if (ext_key >= 0) {
+                return ext_key;
             }
             continue;
         }
 
-        if (scancode == 0x2A || scancode == 0x36) {
-            shift_pressed = true;
-            continue;
-        }
+        /* Modifier keys */
+        if (scancode == 0x2A || scancode == 0x36) { shift_pressed = true;  continue; }
+        if (scancode == 0x1D)                      { ctrl_pressed  = true;  continue; }
+        if (scancode == 0x3A)                      { caps_lock = !caps_lock; continue; }
 
-        if (scancode == 0x1D) {
-            ctrl_pressed = true;
-            continue;
-        }
-
-        if (scancode == 0x3A) {
-            caps_lock = !caps_lock;
-            continue;
+        /* Function keys F1-F5 */
+        switch (scancode) {
+            case 0x3B: return KEY_F1;
+            case 0x3C: return KEY_F2;
+            case 0x3D: return KEY_F3;
+            case 0x3E: return KEY_F4;
+            case 0x3F: return KEY_F5;
+            default: break;
         }
 
         c = scancode_set1_map[scancode];
@@ -121,6 +141,16 @@ char keyboard_getchar(void) {
             c = (char)(to_lower(c) - 'a' + 1);
         }
 
-        return c;
+        return (int)(unsigned char)c;
+    }
+}
+
+char keyboard_getchar(void) {
+    for (;;) {
+        int k = keyboard_get_key();
+        if (k >= 0 && k <= 127) {
+            return (char)k;
+        }
+        /* Skip special keys (arrows, function keys) */
     }
 }

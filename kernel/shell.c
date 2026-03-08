@@ -16,6 +16,7 @@
 
 static int shell_cwd = 0;
 static uint16_t shell_uid = SHELL_UID_DEBIAN;
+static int g_shell_exit = 0;
 static int apt_index_ready = 0;
 static int network_manager_running = 1;
 static int wifi_enabled = 1;
@@ -379,6 +380,7 @@ static void cmd_help(void) {
     shell_println("  System:");
     shell_println("    help                    show this help");
     shell_println("    clear                   clear the screen");
+    shell_println("    logout / exit           return to the desktop");
     shell_println("    install                 install FurOS to disk");
     shell_println("    disk info|load|save|format");
     shell_println("    sync                    save filesystem to disk");
@@ -936,6 +938,10 @@ static void cmd_install(void) {
     shell_println("Install complete. Reboot to start FurOS from disk.");
 }
 
+static void cmd_logout(void) {
+    g_shell_exit = 1;
+}
+
 static void cmd_sync(void) {
     if (disk_save_fs() != 0) {
         shell_println("sync: failed");
@@ -1282,6 +1288,9 @@ static void shell_dispatch(int argc, char *argv[]) {
         cmd_sudo(argc, argv);
     } else if (kstrcmp(argv[0], "install") == 0) {
         cmd_install();
+    } else if (kstrcmp(argv[0], "logout") == 0 ||
+               kstrcmp(argv[0], "exit")   == 0) {
+        cmd_logout();
     } else if (kstrcmp(argv[0], "disk") == 0) {
         cmd_disk(argc, argv);
     } else if (kstrcmp(argv[0], "sync") == 0) {
@@ -1300,7 +1309,6 @@ static void shell_dispatch(int argc, char *argv[]) {
     }
 }
 
-__attribute__((noreturn))
 void shell_run(void) {
     char line[SHELL_LINE_MAX];
     char *argv[SHELL_ARGV_MAX];
@@ -1308,18 +1316,19 @@ void shell_run(void) {
     const char *motd_data = 0;
     size_t motd_size = 0;
 
+    g_shell_exit = 0;
     keyboard_init();
     fs_init();
     disk_init();
 
     if (disk_available() && disk_load_fs() == 0) {
-        /* Loaded from disk - filesystem already set up */
+        /* Loaded from disk — filesystem already set up */
     } else {
         shell_seed_filesystem();
         if (!disk_available()) {
-            vga_write_string("[  OK  ] No disk found - running in live mode\n");
+            vga_write_string("[  OK  ] No disk found — running in live mode\n");
         } else {
-            vga_write_string("[  OK  ] No installed filesystem - running in live mode\n");
+            vga_write_string("[  OK  ] No installed filesystem — running in live mode\n");
         }
     }
 
@@ -1327,13 +1336,14 @@ void shell_run(void) {
     shell_uid = SHELL_UID_DEBIAN;
 
     /* Show /etc/motd if it exists */
-    if (fs_read_file(fs_get_root(), "etc/motd", &motd_data, &motd_size) == 0 && motd_data != 0 && motd_size > 0) {
+    if (fs_read_file(fs_get_root(), "etc/motd", &motd_data, &motd_size) == 0
+            && motd_data != 0 && motd_size > 0) {
         vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
         vga_write_string(motd_data);
         vga_set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
     }
 
-    while (1) {
+    while (!g_shell_exit) {
         if (shell_uid == SHELL_UID_ROOT) {
             vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
         } else {
@@ -1347,5 +1357,10 @@ void shell_run(void) {
             continue;
         }
         shell_dispatch(argc, argv);
+    }
+
+    /* Sync before leaving the terminal session */
+    if (disk_available()) {
+        (void)disk_save_fs();
     }
 }
