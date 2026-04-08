@@ -1,8 +1,8 @@
 #include <stdint.h>
 
+#include "desktop.h"
 #include "installer.h"
 #include "serial.h"
-#include "shell.h"
 #include "vga.h"
 
 #define MULTIBOOT2_BOOT_MAGIC 0x36D76289u
@@ -20,17 +20,16 @@ __attribute__((noreturn))
 void kernel_main(void) {
     vga_set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
     vga_clear();
-    vga_write_string("FurOS booted\n");
 
 #if FUR_OS_SERIAL_DEBUG
     serial_init();
-    serial_write_string("FurOS booted\n");
+    serial_write_string("FurOS 1.0 kernel initialized\n");
 #endif
 
     if (fur_boot_magic == MULTIBOOT2_BOOT_MAGIC) {
-        installer_run();
+        installer_run();   /* Arch-style TUI installer — noreturn */
     } else {
-        shell_run();
+        desktop_run();     /* KDE Plasma-style text desktop — noreturn */
     }
 
     halt_forever();

@@ -28,4 +28,22 @@ void vga_putchar(char c);
 void vga_backspace(void);
 void vga_write_string(const char *str);
 
+/* Direct-position writes with explicit fg/bg (do not move the cursor) */
+void vga_put_at(int x, int y, unsigned char c, uint8_t fg, uint8_t bg);
+void vga_write_str_at(int x, int y, const char *s, uint8_t fg, uint8_t bg);
+
+/* Fill a rectangle with a character and color */
+void vga_fill_rect(int x, int y, int w, int h,
+                   unsigned char c, uint8_t fg, uint8_t bg);
+
+/* Scrolling cursor position */
+void vga_set_cursor_pos(int x, int y);
+int  vga_get_row(void);
+int  vga_get_col(void);
+
+/* Viewport: vga_clear() and scrolling are confined to [top..bottom] rows.
+ * Rows outside the viewport are never touched by normal text output. */
+void vga_set_viewport(int top, int bottom);
+void vga_reset_viewport(void);
+
 #endif

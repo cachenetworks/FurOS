@@ -120,6 +120,17 @@ int disk_install_system(void) {
         return -1;
     }
 
+    /* Verify disk is large enough to hold bootloader + kernel + filesystem */
+    {
+        struct disk_info cap;
+        uint32_t needed = (uint32_t)(DISK_START_LBA + DISK_TOTAL_SECTORS);
+        if (disk_get_info(g_selected_disk, &cap) == 0 &&
+            cap.sectors28 > 0 && cap.sectors28 < needed) {
+            g_last_error = "disk too small for FurOS (need 3 MB minimum)";
+            return -1;
+        }
+    }
+
     if ((size_t)(bootsect_end - bootsect_start) < BOOTSECT_SIZE) {
         g_last_error = "boot sector blob missing";
         return -1;
@@ -169,6 +180,9 @@ int disk_install_system(void) {
             return -1;
         }
     }
+
+    /* Flush drive write cache so all data is persisted before we return */
+    (void)ata_flush();
 
     g_last_error = "ok";
     return 0;
@@ -265,6 +279,9 @@ int disk_save_fs(void) {
             return -1;
         }
     }
+
+    /* Flush drive write cache so filesystem data is fully persisted */
+    (void)ata_flush();
 
     g_last_error = "ok";
     return 0;
